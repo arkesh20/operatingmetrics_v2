@@ -20,7 +20,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .grain{position:fixed;inset:0;opacity:.025;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .shell{max-width:1280px;margin:0 auto;padding:28px 24px;position:relative;z-index:1}
 
-/* Header */
 header{margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
 h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradient(135deg,#e8ecf4 30%,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .tagline{font-size:12px;color:var(--text2);margin-top:3px}
@@ -28,14 +27,13 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradien
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
-/* Loading */
 #loader{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--indigo);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 #loader p{font-size:13px;color:var(--text2)}
+#loadStatus{font-size:11px;color:var(--text3);margin-top:4px}
 #errorBox{display:none;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.25);border-radius:10px;padding:16px 20px;margin:24px 0;color:var(--rose);font-size:13px;line-height:1.6}
 
-/* Metric Tabs */
 .metric-tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:2px solid var(--border);padding-bottom:0}
 .metric-tab{padding:10px 24px 12px;font:600 13px 'DM Sans',sans-serif;color:var(--text2);background:none;border:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:all .2s;border-radius:8px 8px 0 0}
 .metric-tab:hover{color:var(--text);background:var(--bg2)}
@@ -43,7 +41,6 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradien
 .metric-tab .tab-count{font:500 10px 'JetBrains Mono',monospace;color:var(--text3);display:block;margin-top:2px}
 .metric-tab.active .tab-count{color:var(--indigo2)}
 
-/* KPIs */
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin-bottom:22px}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:border-color .2s}
 .kpi:hover{border-color:var(--border2)}
@@ -52,7 +49,6 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradien
 .kpi-sub{font-size:11px;color:var(--text2);margin-top:3px}
 .kpi-up{color:var(--green)}.kpi-down{color:var(--rose)}
 
-/* Toolbar */
 .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .view-toggle{display:flex;background:var(--bg2);border:1px solid var(--border);border-radius:7px;overflow:hidden}
 .view-btn{padding:7px 16px;font:600 11px 'DM Sans',sans-serif;color:var(--text2);background:none;border:none;cursor:pointer;transition:all .15s;white-space:nowrap}
@@ -64,7 +60,6 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradien
 .search-wrap input::placeholder{color:var(--text3)}
 .search-wrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3)}
 
-/* Chips */
 .chips-area{margin-bottom:14px}
 .chip-actions{display:flex;gap:8px;margin-bottom:6px}
 .chip-act{font:500 11px 'DM Sans',sans-serif;color:var(--indigo2);background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
@@ -73,12 +68,10 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradien
 .chip:hover{border-color:var(--text3);color:var(--text)}
 .chip.on{color:#fff;border-color:transparent}
 
-/* Chart */
 .chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:22px}
 .chart-box{position:relative;height:380px}
 .chart-box canvas{width:100%!important;height:100%!important}
 
-/* Table */
 .table-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .table-scroll{max-height:500px;overflow:auto}
 .table-scroll::-webkit-scrollbar{width:5px;height:5px}
@@ -106,17 +99,19 @@ tbody tr:hover td{background:rgba(99,102,241,.06)}
 <header class="anim">
   <div>
     <h1>Crimson Core — Operating Metrics</h1>
-    <div class="tagline" id="tagline">Connecting to Google Sheet…</div>
+    <div class="tagline" id="tagline">Connecting…</div>
   </div>
-  <div class="live-badge"><span class="live-dot"></span> Live from Google Sheets</div>
+  <div class="live-badge"><span class="live-dot"></span> Live</div>
 </header>
 
-<div id="loader"><div class="spinner"></div><p>Fetching data from Google Sheet…</p></div>
+<div id="loader">
+  <div class="spinner"></div>
+  <p>Fetching data from Google Sheet…</p>
+  <div id="loadStatus"></div>
+</div>
 <div id="errorBox"></div>
 
-<!-- Everything below is hidden until data loads -->
 <div id="mainUI" style="display:none">
-
   <div class="metric-tabs anim d1" id="metricTabs">
     <button class="metric-tab active" data-metric="created">Leads Created<span class="tab-count" id="countCreated"></span></button>
     <button class="metric-tab" data-metric="booked">ICs Booked<span class="tab-count" id="countBooked"></span></button>
@@ -155,136 +150,144 @@ tbody tr:hover td{background:rgba(99,102,241,.06)}
 </div>
 <script>
 /* ═══════════════════════════════════════════════════════════
-   CONFIG
+   CONFIG — Google Sheet connection
+   ═══════════════════════════════════════════════════════════
+   Each metric is its own SHEET TAB with a pivot-table layout:
+     Row 3  → market headers (Aus, Br, Can, … Sum)
+     Col A  → week dates (row 4 onward)
+     Grid   → numeric values
+   We fetch each tab by NAME using the gviz CSV endpoint.
    ═══════════════════════════════════════════════════════════ */
 const SHEET_ID = '1ObNlku8IJ7FESCsWQ6kIsPiCpw5tEcbNOx583SC7ufY';
-const GID      = '1743607267';
-const CSV_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+
+const TABS = {
+  created: { sheetName: 'Leads Created', label: 'Leads Created' },
+  booked:  { sheetName: 'ICs Booked',    label: 'ICs Booked'    },
+  closed:  { sheetName: 'Deals Closed',  label: 'Deals Closed'  }
+};
+
+function csvUrl(sheetName) {
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+}
 
 const PALETTE = [
   "#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316",
   "#3b82f6","#84cc16","#a855f7","#06b6d4","#e11d48","#22d3ee","#d946ef","#facc15",
-  "#4ade80","#fb923c","#818cf8","#2dd4bf","#f43f5e","#34d399","#0ea5e9","#e879f9",
-  "#fcd34d","#a3e635","#38bdf8","#c084fc","#fb923c","#67e8f9"
+  "#4ade80","#fb923c","#818cf8","#2dd4bf","#f43f5e","#34d399","#0ea5e9","#e879f9"
 ];
 
 /* ═══════════════════════════════════════════════════════════
    STATE
    ═══════════════════════════════════════════════════════════ */
-let ALL_MARKETS = [];        // ordered unique markets
-let METRICS = {};            // { created: {weeks:[], markets:[], grid:[][]}, booked: {…}, closed: {…} }
+let ALL_MARKETS = [];
+let METRICS = {};
 let currentMetric = 'created';
-let currentView   = 'chart';
+let currentView = 'chart';
 let selected = new Set();
 let filterText = '';
 let chart = null;
 
 /* ═══════════════════════════════════════════════════════════
-   FETCH & PARSE
+   PARSE ONE TAB — pivot-table structure
+   ═══════════════════════════════════════════════════════════
+   Auto-detects the header row by looking for a row that has 5+
+   non-empty cells after column 0 AND whose cells are text
+   (market names), not numbers. Then treats every subsequent row
+   whose column-0 value parses as a date as a data row.
    ═══════════════════════════════════════════════════════════ */
-async function loadSheet() {
+function parsePivotCSV(csvText) {
+  const parsed = Papa.parse(csvText, { header: false, skipEmptyLines: true });
+  const rows = parsed.data;
+
+  // ── Find the header row (market names like Aus, Br, Can …) ──
+  let headerRowIdx = -1;
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
+    const row = rows[r];
+    // Count non-empty cells after col 0 that are NOT purely numeric
+    const textCells = row.filter((c, i) => {
+      if (i === 0) return false;
+      const v = (c || '').trim();
+      if (!v) return false;
+      return isNaN(Number(v.replace(/,/g, '')));
+    });
+    // Market header row should have many text labels (Aus, Br, Can…)
+    if (textCells.length >= 5) {
+      headerRowIdx = r;
+      break;
+    }
+  }
+  if (headerRowIdx === -1) throw new Error('Could not find market header row.');
+
+  // ── Extract market names, skip "Sum" column ──
+  const headerRow = rows[headerRowIdx];
+  const markets = [];
+  const marketCols = [];
+  for (let c = 1; c < headerRow.length; c++) {
+    const name = (headerRow[c] || '').trim();
+    if (!name) continue;
+    if (name.toLowerCase() === 'sum' || name.toLowerCase() === 'total') continue;
+    markets.push(name);
+    marketCols.push(c);
+  }
+
+  // ── Parse data rows ──
+  const weeks = [];
+  const grid = [];
+
+  for (let r = headerRowIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const dateStr = (row[0] || '').trim();
+    if (!dateStr) continue;
+    const testDate = new Date(dateStr);
+    if (isNaN(testDate.getTime())) continue;
+
+    weeks.push(dateStr);
+    const vals = marketCols.map(c => {
+      const raw = (row[c] || '').replace(/,/g, '').trim();
+      return parseInt(raw, 10) || 0;
+    });
+    grid.push(vals);
+  }
+
+  return { weeks, markets, grid };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FETCH ALL 3 TABS
+   ═══════════════════════════════════════════════════════════ */
+async function loadAllTabs() {
+  const status = document.getElementById('loadStatus');
   try {
-    const resp = await fetch(CSV_URL);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-    const text = await resp.text();
-
-    const parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
-    const rows = parsed.data;
-
-    // Find data rows: first row is header (Week, Market, # Created, # Booked, # Won)
-    // Skip header row
-    const header = rows[0];
-    console.log('Header:', header);
-
-    // Determine column indices by header name
-    let colWeek = 0, colMarket = 1, colCreated = 2, colBooked = 3, colWon = 4;
-    for (let i = 0; i < header.length; i++) {
-      const h = (header[i] || '').trim().toLowerCase();
-      if (h.includes('week')) colWeek = i;
-      if (h.includes('market')) colMarket = i;
-      if (h.includes('created')) colCreated = i;
-      if (h.includes('booked')) colBooked = i;
-      if (h.includes('won')) colWon = i;
+    for (const [key, tab] of Object.entries(TABS)) {
+      status.textContent = `Loading ${tab.label}…`;
+      const url = csvUrl(tab.sheetName);
+      console.log(`Fetching: ${url}`);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Failed to fetch "${tab.sheetName}" tab: HTTP ${resp.status}`);
+      const text = await resp.text();
+      console.log(`Raw CSV for ${tab.sheetName} (first 500 chars):`, text.substring(0, 500));
+      const result = parsePivotCSV(text);
+      console.log(`Parsed ${tab.sheetName}: ${result.weeks.length} weeks, ${result.markets.length} markets`);
+      METRICS[key] = { ...result, label: tab.label };
     }
 
-    // Parse all data rows
-    const records = []; // { week, market, created, booked, closed }
-    const weekSet = new Set();
-    const marketSet = new Set();
+    ALL_MARKETS = METRICS.created.markets;
 
-    for (let r = 1; r < rows.length; r++) {
-      const row = rows[r];
-      const week   = (row[colWeek] || '').trim();
-      const market = (row[colMarket] || '').trim();
-      if (!week || !market) continue;
-
-      // Parse numeric, handle commas
-      const parseNum = s => {
-        if (!s) return 0;
-        return parseInt(String(s).replace(/,/g, '').trim(), 10) || 0;
-      };
-
-      records.push({
-        week,
-        market,
-        created: parseNum(row[colCreated]),
-        booked:  parseNum(row[colBooked]),
-        closed:  parseNum(row[colWon])
-      });
-
-      weekSet.add(week);
-      marketSet.add(market);
-    }
-
-    if (records.length === 0) throw new Error('No data rows found in the sheet.');
-
-    // Order weeks by date descending (most recent first)
-    const parseWeekDate = w => {
-      const d = new Date(w);
-      return isNaN(d) ? 0 : d.getTime();
-    };
-    const weeks = [...weekSet].sort((a, b) => parseWeekDate(b) - parseWeekDate(a));
-    ALL_MARKETS = [...marketSet].sort();
-
-    // Build grid for each metric: grid[weekIdx][marketIdx] = value
-    function buildGrid(field) {
-      const weekIdx = {};
-      weeks.forEach((w, i) => weekIdx[w] = i);
-      const mktIdx = {};
-      ALL_MARKETS.forEach((m, i) => mktIdx[m] = i);
-
-      const grid = weeks.map(() => ALL_MARKETS.map(() => 0));
-      records.forEach(rec => {
-        const wi = weekIdx[rec.week];
-        const mi = mktIdx[rec.market];
-        if (wi !== undefined && mi !== undefined) {
-          grid[wi][mi] = rec[field];
-        }
-      });
-      return grid;
-    }
-
-    METRICS = {
-      created: { weeks, markets: ALL_MARKETS, grid: buildGrid('created'), label: 'Leads Created' },
-      booked:  { weeks, markets: ALL_MARKETS, grid: buildGrid('booked'),  label: 'ICs Booked' },
-      closed:  { weeks, markets: ALL_MARKETS, grid: buildGrid('closed'),  label: 'Deals Closed' }
-    };
-
-    // Default selection: top 5 markets by total created
+    // Default: top 5 by total leads created
     const totals = ALL_MARKETS.map((m, i) => ({
       market: m,
-      total: METRICS.created.grid.reduce((s, row) => s + row[i], 0)
+      total: METRICS.created.grid.reduce((s, row) => s + (row[i] || 0), 0)
     }));
     totals.sort((a, b) => b.total - a.total);
     selected = new Set(totals.slice(0, 5).map(t => t.market));
 
-    // Update UI
+    // Show UI
     document.getElementById('loader').style.display = 'none';
     document.getElementById('mainUI').style.display = '';
-    document.getElementById('tagline').textContent = `${weeks.length} weeks · ${ALL_MARKETS.length} markets · Live from Google Sheets`;
-    document.getElementById('countCreated').textContent = `${weeks.length} weeks`;
-    document.getElementById('countBooked').textContent = `${weeks.length} weeks`;
-    document.getElementById('countClosed').textContent = `${weeks.length} weeks`;
+    document.getElementById('tagline').textContent = `${METRICS.created.weeks.length} weeks · ${ALL_MARKETS.length} markets`;
+    document.getElementById('countCreated').textContent = `${METRICS.created.weeks.length} weeks`;
+    document.getElementById('countBooked').textContent = `${METRICS.booked.weeks.length} weeks`;
+    document.getElementById('countClosed').textContent = `${METRICS.closed.weeks.length} weeks`;
 
     renderKPIs();
     renderChips();
@@ -294,27 +297,23 @@ async function loadSheet() {
     document.getElementById('loader').style.display = 'none';
     const box = document.getElementById('errorBox');
     box.style.display = '';
-    box.innerHTML = `<strong>Failed to load data:</strong> ${err.message}<br><br>
-      Make sure the Google Sheet is publicly shared (Anyone with the link can view).<br>
-      Direct CSV URL attempted: <code style="font-size:11px;word-break:break-all">${CSV_URL}</code>`;
+    box.innerHTML = `<strong>Failed to load:</strong> ${err.message}<br><br>
+      Make sure the sheet is publicly shared. Expected tabs: <code>Leads Created</code>, <code>ICs Booked</code>, <code>Deals Closed</code><br>
+      <small style="color:var(--text3)">Check browser console (F12) for details.</small>`;
+    console.error(err);
   }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   FORMAT HELPERS
+   HELPERS
    ═══════════════════════════════════════════════════════════ */
 function fmtWeek(w) {
-  // Shorten "March 16, 2026" → "Mar 16, '26"
   const d = new Date(w);
   if (isNaN(d)) return w;
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}, '${String(d.getFullYear()).slice(2)}`;
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${mo[d.getMonth()]} ${d.getDate()}, '${String(d.getFullYear()).slice(2)}`;
 }
-
-function colorFor(market) {
-  const i = ALL_MARKETS.indexOf(market);
-  return PALETTE[i % PALETTE.length];
-}
+function colorFor(m) { return PALETTE[ALL_MARKETS.indexOf(m) % PALETTE.length]; }
 
 /* ═══════════════════════════════════════════════════════════
    METRIC TAB SWITCHING
@@ -362,18 +361,17 @@ function renderKPIs() {
   const peak = Math.max(...totals);
   const peakIdx = totals.indexOf(peak);
   const wow = prev ? ((latest - prev) / prev * 100).toFixed(1) : '—';
-  const sign = typeof wow === 'string' && wow !== '—' ? (wow >= 0 ? '+' : '') : '';
-  const wowClass = wow >= 0 ? 'kpi-up' : 'kpi-down';
-
+  const sign = wow !== '—' ? (parseFloat(wow) >= 0 ? '+' : '') : '';
+  const wowCls = parseFloat(wow) >= 0 ? 'kpi-up' : 'kpi-down';
   const latestRow = ds.grid[0] || [];
   const topVal = Math.max(...latestRow);
-  const topMktIdx = latestRow.indexOf(topVal);
+  const topIdx = latestRow.indexOf(topVal);
 
   document.getElementById('kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Latest Week</div><div class="kpi-val">${latest.toLocaleString()}</div><div class="kpi-sub ${wowClass}">${sign}${wow}% WoW</div></div>
+    <div class="kpi"><div class="kpi-label">Latest Week</div><div class="kpi-val">${latest.toLocaleString()}</div><div class="kpi-sub ${wowCls}">${sign}${wow}% WoW</div></div>
     <div class="kpi"><div class="kpi-label">${ds.weeks.length}-Week Avg</div><div class="kpi-val">${avg.toLocaleString()}</div><div class="kpi-sub">per week</div></div>
     <div class="kpi"><div class="kpi-label">Peak Week</div><div class="kpi-val">${peak.toLocaleString()}</div><div class="kpi-sub">${fmtWeek(ds.weeks[peakIdx])}</div></div>
-    <div class="kpi"><div class="kpi-label">Top Market (Latest)</div><div class="kpi-val">${ds.markets[topMktIdx] || '—'}</div><div class="kpi-sub">${topVal.toLocaleString()} ${ds.label.toLowerCase()}</div></div>
+    <div class="kpi"><div class="kpi-label">Top Market (Latest)</div><div class="kpi-val">${ds.markets[topIdx] || '—'}</div><div class="kpi-sub">${topVal.toLocaleString()} ${ds.label.toLowerCase()}</div></div>
   `;
 }
 
@@ -381,8 +379,7 @@ function renderKPIs() {
    CHIPS
    ═══════════════════════════════════════════════════════════ */
 function renderChips() {
-  const box = document.getElementById('chipBox');
-  box.innerHTML = ALL_MARKETS
+  document.getElementById('chipBox').innerHTML = ALL_MARKETS
     .filter(m => !filterText || m.toLowerCase().includes(filterText))
     .map(m => {
       const c = colorFor(m), on = selected.has(m);
@@ -392,9 +389,8 @@ function renderChips() {
 function toggleChip(m) { selected.has(m) ? selected.delete(m) : selected.add(m); renderChips(); buildChart(); }
 function pickTop5() {
   const ds = METRICS[currentMetric];
-  const totals = ALL_MARKETS.map((m, i) => ({ m, t: ds.grid.reduce((s, r) => s + r[i], 0) }));
-  totals.sort((a, b) => b.t - a.t);
-  selected = new Set(totals.slice(0, 5).map(x => x.m));
+  const t = ALL_MARKETS.map((m, i) => ({ m, t: ds.grid.reduce((s, r) => s + (r[i]||0), 0) })).sort((a,b) => b.t - a.t);
+  selected = new Set(t.slice(0, 5).map(x => x.m));
   renderChips(); buildChart();
 }
 function pickAll()  { selected = new Set(ALL_MARKETS); renderChips(); buildChart(); }
@@ -411,37 +407,29 @@ function buildChart() {
   const datasets = ALL_MARKETS.filter(m => selected.has(m)).map(m => {
     const mi = ALL_MARKETS.indexOf(m);
     return {
-      label: m,
-      data: [...ds.grid].reverse().map(r => r[mi]),
-      borderColor: colorFor(m),
-      backgroundColor: colorFor(m) + '18',
-      borderWidth: 2,
-      pointRadius: ds.weeks.length > 20 ? 1 : 3,
-      pointHoverRadius: 5,
-      tension: 0.35,
-      fill: false
+      label: m, data: [...ds.grid].reverse().map(r => r[mi] || 0),
+      borderColor: colorFor(m), backgroundColor: colorFor(m) + '18',
+      borderWidth: 2, pointRadius: ds.weeks.length > 20 ? 1 : 3,
+      pointHoverRadius: 5, tension: 0.35, fill: false
     };
   });
   if (chart) chart.destroy();
-  const ctx = document.getElementById('mainCanvas').getContext('2d');
-  chart = new Chart(ctx, {
-    type: ds.weeks.length <= 8 ? 'bar' : 'line',
-    data: { labels, datasets },
+  chart = new Chart(document.getElementById('mainCanvas'), {
+    type: 'line', data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10, family: 'DM Sans' }, color: '#8a93b8' } },
-        tooltip: {
-          backgroundColor: 'rgba(11,14,25,.95)', borderColor: '#2a3158', borderWidth: 1,
+        tooltip: { backgroundColor: 'rgba(11,14,25,.95)', borderColor: '#2a3158', borderWidth: 1,
           titleFont: { size: 12, family: 'DM Sans' }, bodyFont: { size: 11, family: 'JetBrains Mono' },
           padding: 10, cornerRadius: 8, displayColors: true, boxWidth: 8, boxPadding: 4,
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` }
-        }
+          callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}` } }
       },
       scales: {
         x: { ticks: { font: { size: 9, family: 'DM Sans' }, color: '#8a93b8', maxRotation: 60, autoSkip: true, maxTicksLimit: 30 }, grid: { color: 'rgba(42,49,88,.3)' } },
-        y: { beginAtZero: true, title: { display: true, text: ds.label, font: { size: 12, family: 'DM Sans' }, color: '#8a93b8' }, ticks: { font: { size: 10, family: 'JetBrains Mono' }, color: '#8a93b8', callback: v => v.toLocaleString() }, grid: { color: 'rgba(42,49,88,.3)' } }
+        y: { beginAtZero: true, title: { display: true, text: ds.label, font: { size: 12, family: 'DM Sans' }, color: '#8a93b8' },
+          ticks: { font: { size: 10, family: 'JetBrains Mono' }, color: '#8a93b8', callback: v => v.toLocaleString() }, grid: { color: 'rgba(42,49,88,.3)' } }
       }
     }
   });
@@ -453,21 +441,16 @@ function buildChart() {
 function renderTable() {
   const ds = METRICS[currentMetric];
   if (!ds) return;
-  const flat = ds.grid.flat();
-  const sorted = [...flat].sort((a, b) => a - b);
+  const flat = ds.grid.flat(), sorted = [...flat].sort((a,b) => a - b);
   const p90 = sorted[Math.floor(sorted.length * .9)] || 1;
   const p70 = sorted[Math.floor(sorted.length * .7)] || 1;
-
   let h = '<table><thead><tr><th>Week</th>';
-  ALL_MARKETS.forEach(m => h += `<th>${m}</th>`);
+  ds.markets.forEach(m => h += `<th>${m}</th>`);
   h += '<th class="col-total">Total</th></tr></thead><tbody>';
   ds.grid.forEach((row, ri) => {
-    const t = row.reduce((a, b) => a + b, 0);
+    const t = row.reduce((a,b) => a + b, 0);
     h += `<tr><td>${fmtWeek(ds.weeks[ri])}</td>`;
-    row.forEach(v => {
-      const cls = v >= p90 ? 'v-high' : v >= p70 ? 'v-med' : '';
-      h += `<td class="${cls}">${v.toLocaleString()}</td>`;
-    });
+    row.forEach(v => { h += `<td class="${v >= p90 ? 'v-high' : v >= p70 ? 'v-med' : ''}">${v.toLocaleString()}</td>`; });
     h += `<td class="col-total">${t.toLocaleString()}</td></tr>`;
   });
   h += '</tbody></table>';
@@ -481,19 +464,15 @@ function renderHeatmap() {
   const ds = METRICS[currentMetric];
   if (!ds) return;
   const maxV = Math.max(...ds.grid.flat()) || 1;
-
   let h = '<table><thead><tr><th>Week</th>';
-  ALL_MARKETS.forEach(m => h += `<th style="font-size:9px;padding:6px 3px;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap">${m}</th>`);
+  ds.markets.forEach(m => h += `<th style="font-size:9px;padding:6px 3px;writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap">${m}</th>`);
   h += '</tr></thead><tbody>';
   ds.grid.forEach((row, ri) => {
     h += `<tr><td>${fmtWeek(ds.weeks[ri])}</td>`;
     row.forEach(v => {
-      const pct = v / maxV;
-      const r = Math.round(99 * (1 - pct) + 52 * pct);
-      const g = Math.round(102 * (1 - pct) + 211 * pct);
-      const b = Math.round(241 * (1 - pct) + 153 * pct);
-      const alpha = Math.max(.05, pct * .65);
-      h += `<td class="heat-cell" style="background:rgba(${r},${g},${b},${alpha.toFixed(2)});color:${pct > .25 ? '#fff' : '#8a93b8'}">${v.toLocaleString()}</td>`;
+      const p = v / maxV;
+      const r = Math.round(99*(1-p)+52*p), g = Math.round(102*(1-p)+211*p), b = Math.round(241*(1-p)+153*p);
+      h += `<td class="heat-cell" style="background:rgba(${r},${g},${b},${Math.max(.05,p*.65).toFixed(2)});color:${p>.25?'#fff':'#8a93b8'}">${v.toLocaleString()}</td>`;
     });
     h += '</tr>';
   });
@@ -504,7 +483,7 @@ function renderHeatmap() {
 /* ═══════════════════════════════════════════════════════════
    INIT
    ═══════════════════════════════════════════════════════════ */
-loadSheet();
+loadAllTabs();
 </script>
 </body>
 </html>
