@@ -526,16 +526,58 @@ function buildTotalChart() {
 function buildChart() {
   const ds = METRICS[currentMetric]; if (!ds) return;
   const labels = [...ds.weeks].reverse().map(fmtWeek);
-  const datasets = ALL_MARKETS.filter(m=>selected.has(m)).map(m => {
+  const datasets = [];
+
+  ALL_MARKETS.filter(m => selected.has(m)).forEach(m => {
     const mi = ALL_MARKETS.indexOf(m);
-    return {label:m,data:[...ds.grid].reverse().map(r=>r[mi]||0),borderColor:colorFor(m),backgroundColor:colorFor(m)+'18',borderWidth:2,pointRadius:ds.weeks.length>20?1:3,pointHoverRadius:5,tension:.35,fill:false};
+    const raw = [...ds.grid].reverse().map(r => r[mi] || 0);
+    const color = colorFor(m);
+
+    // Actual line
+    datasets.push({
+      label: m,
+      data: raw,
+      borderColor: color,
+      backgroundColor: color + '18',
+      borderWidth: 2,
+      pointRadius: ds.weeks.length > 20 ? 1 : 3,
+      pointHoverRadius: 5,
+      tension: 0.35,
+      fill: false,
+      order: 1
+    });
+
+    // L4W trailing average line (same color, dashed, thicker)
+    const l4w = raw.map((v, i) => {
+      const win = raw.slice(Math.max(0, i - 3), i + 1);
+      return Math.round(win.reduce((a, b) => a + b, 0) / win.length);
+    });
+    datasets.push({
+      label: `${m} L4W`,
+      data: l4w,
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 2.5,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      tension: 0.4,
+      fill: false,
+      order: 0
+    });
   });
+
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById('mainCanvas'), {
     type:'line', data:{labels,datasets},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:8,font:{size:10,family:'DM Sans'},color:'#8a93b8'}},
-        tooltip:{backgroundColor:'rgba(11,14,25,.95)',borderColor:'#2a3158',borderWidth:1,titleFont:{size:12,family:'DM Sans'},bodyFont:{size:11,family:'JetBrains Mono'},padding:10,cornerRadius:8,displayColors:true,boxWidth:8,boxPadding:4,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}`}}},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:8,font:{size:10,family:'DM Sans'},color:'#8a93b8',
+        filter: item => !item.text.includes('L4W') // hide L4W from legend to keep it clean
+      }},
+        tooltip:{backgroundColor:'rgba(11,14,25,.95)',borderColor:'#2a3158',borderWidth:1,titleFont:{size:12,family:'DM Sans'},bodyFont:{size:11,family:'JetBrains Mono'},padding:10,cornerRadius:8,displayColors:true,boxWidth:8,boxPadding:4,callbacks:{label:c=>{
+          const isDash = c.dataset.borderDash && c.dataset.borderDash.length;
+          return ` ${c.dataset.label}: ${c.parsed.y.toLocaleString()}${isDash?' (avg)':''}`;
+        }}}},
       scales:{x:{ticks:{font:{size:9,family:'DM Sans'},color:'#8a93b8',maxRotation:60,autoSkip:true,maxTicksLimit:30},grid:{color:'rgba(42,49,88,.3)'}},
         y:{beginAtZero:true,title:{display:true,text:ds.label,font:{size:12,family:'DM Sans'},color:'#8a93b8'},ticks:{font:{size:10,family:'JetBrains Mono'},color:'#8a93b8',callback:v=>v.toLocaleString()},grid:{color:'rgba(42,49,88,.3)'}}}}
   });
