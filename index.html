@@ -54,11 +54,7 @@ h1{font-size:24px;font-weight:700;letter-spacing:-.4px;background:linear-gradien
 .view-btn{padding:7px 16px;font:600 11px 'DM Sans',sans-serif;color:var(--text2);background:none;border:none;cursor:pointer;transition:all .15s;white-space:nowrap}
 .view-btn.active{color:#fff;background:var(--indigo)}
 .view-btn:hover:not(.active){color:var(--text);background:var(--bg3)}
-.search-wrap{flex:1;min-width:160px;max-width:260px;position:relative}
-.search-wrap input{width:100%;padding:7px 12px 7px 32px;font:400 12px 'DM Sans',sans-serif;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:7px;outline:none;transition:border-color .2s}
-.search-wrap input:focus{border-color:var(--indigo)}
-.search-wrap input::placeholder{color:var(--text3)}
-.search-wrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3)}
+
 
 .chips-area{margin-bottom:14px}
 .chip-actions{display:flex;gap:8px;margin-bottom:6px}
@@ -126,13 +122,14 @@ tbody tr:hover td{background:rgba(99,102,241,.06)}
       <button class="view-btn" data-view="table">Table</button>
       <button class="view-btn" data-view="heatmap">Heatmap</button>
     </div>
-    <div class="search-wrap">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="searchBox" placeholder="Filter markets…" oninput="onSearch(this.value)">
-    </div>
+
   </div>
 
   <div id="chartPanel">
+    <div class="chart-card anim d3" id="totalChartCard">
+      <div style="font:600 12px 'DM Sans',sans-serif;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.6px" id="totalChartTitle">Total Volume</div>
+      <div class="chart-box" style="height:220px"><canvas id="totalCanvas"></canvas></div>
+    </div>
     <div class="chips-area anim d3">
       <div class="chip-actions">
         <button class="chip-act" onclick="pickTop5()">Top 5</button>
@@ -186,6 +183,7 @@ let currentView = 'chart';
 let selected = new Set();
 let filterText = '';
 let chart = null;
+let totalChart = null;
 
 /* ═══════════════════════════════════════════════════════════
    PARSE ONE TAB — pivot-table structure
@@ -273,13 +271,8 @@ async function loadAllTabs() {
 
     ALL_MARKETS = METRICS.created.markets;
 
-    // Default: top 5 by total leads created
-    const totals = ALL_MARKETS.map((m, i) => ({
-      market: m,
-      total: METRICS.created.grid.reduce((s, row) => s + (row[i] || 0), 0)
-    }));
-    totals.sort((a, b) => b.total - a.total);
-    selected = new Set(totals.slice(0, 5).map(t => t.market));
+    // Default: only USA selected
+    selected = new Set(['USA']);
 
     // Show UI
     document.getElementById('loader').style.display = 'none';
@@ -291,6 +284,7 @@ async function loadAllTabs() {
 
     renderKPIs();
     renderChips();
+    buildTotalChart();
     buildChart();
 
   } catch (err) {
@@ -344,7 +338,7 @@ function renderCurrentView() {
   document.getElementById('chartPanel').style.display = currentView === 'chart' ? '' : 'none';
   document.getElementById('tablePanel').style.display = currentView === 'table' ? '' : 'none';
   document.getElementById('heatPanel').style.display  = currentView === 'heatmap' ? '' : 'none';
-  if (currentView === 'chart')   { renderChips(); buildChart(); }
+  if (currentView === 'chart')   { renderChips(); buildTotalChart(); buildChart(); }
   if (currentView === 'table')   renderTable();
   if (currentView === 'heatmap') renderHeatmap();
 }
@@ -356,22 +350,33 @@ function renderKPIs() {
   const ds = METRICS[currentMetric];
   if (!ds) return;
   const totals = ds.grid.map(r => r.reduce((a, b) => a + b, 0));
+
+  // 1) Latest Week + WoW%
   const latest = totals[0] || 0, prev = totals[1] || 0;
-  const avg = Math.round(totals.reduce((a, b) => a + b, 0) / totals.length);
+  const wow = prev ? ((latest - prev) / prev * 100).toFixed(1) : '—';
+  const wowSign = wow !== '—' ? (parseFloat(wow) >= 0 ? '+' : '') : '';
+  const wowCls = parseFloat(wow) >= 0 ? 'kpi-up' : 'kpi-down';
+
+  // 2) Latest Month (sum of last 4 weeks) + MoM% (vs prior 4 weeks)
+  const last4 = totals.slice(0, 4).reduce((a, b) => a + b, 0);
+  const prev4 = totals.slice(4, 8).reduce((a, b) => a + b, 0);
+  const mom = prev4 ? ((last4 - prev4) / prev4 * 100).toFixed(1) : '—';
+  const momSign = mom !== '—' ? (parseFloat(mom) >= 0 ? '+' : '') : '';
+  const momCls = parseFloat(mom) >= 0 ? 'kpi-up' : 'kpi-down';
+
+  // 3) 52-Week Avg (last 52 weeks, or all if fewer)
+  const last52 = totals.slice(0, 52);
+  const avg52 = last52.length ? Math.round(last52.reduce((a, b) => a + b, 0) / last52.length) : 0;
+
+  // 4) Peak Week
   const peak = Math.max(...totals);
   const peakIdx = totals.indexOf(peak);
-  const wow = prev ? ((latest - prev) / prev * 100).toFixed(1) : '—';
-  const sign = wow !== '—' ? (parseFloat(wow) >= 0 ? '+' : '') : '';
-  const wowCls = parseFloat(wow) >= 0 ? 'kpi-up' : 'kpi-down';
-  const latestRow = ds.grid[0] || [];
-  const topVal = Math.max(...latestRow);
-  const topIdx = latestRow.indexOf(topVal);
 
   document.getElementById('kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Latest Week</div><div class="kpi-val">${latest.toLocaleString()}</div><div class="kpi-sub ${wowCls}">${sign}${wow}% WoW</div></div>
-    <div class="kpi"><div class="kpi-label">${ds.weeks.length}-Week Avg</div><div class="kpi-val">${avg.toLocaleString()}</div><div class="kpi-sub">per week</div></div>
+    <div class="kpi"><div class="kpi-label">Latest Week</div><div class="kpi-val">${latest.toLocaleString()}</div><div class="kpi-sub ${wowCls}">${wowSign}${wow}% WoW</div></div>
+    <div class="kpi"><div class="kpi-label">Latest Month</div><div class="kpi-val">${last4.toLocaleString()}</div><div class="kpi-sub ${momCls}">${momSign}${mom}% MoM</div></div>
+    <div class="kpi"><div class="kpi-label">52-Week Avg</div><div class="kpi-val">${avg52.toLocaleString()}</div><div class="kpi-sub">per week</div></div>
     <div class="kpi"><div class="kpi-label">Peak Week</div><div class="kpi-val">${peak.toLocaleString()}</div><div class="kpi-sub">${fmtWeek(ds.weeks[peakIdx])}</div></div>
-    <div class="kpi"><div class="kpi-label">Top Market (Latest)</div><div class="kpi-val">${ds.markets[topIdx] || '—'}</div><div class="kpi-sub">${topVal.toLocaleString()} ${ds.label.toLowerCase()}</div></div>
   `;
 }
 
@@ -398,7 +403,54 @@ function pickNone() { selected.clear(); renderChips(); buildChart(); }
 function onSearch(v){ filterText = v.toLowerCase(); renderChips(); }
 
 /* ═══════════════════════════════════════════════════════════
-   CHART
+   TOTAL VOLUME CHART (Sum column over time)
+   ═══════════════════════════════════════════════════════════ */
+function buildTotalChart() {
+  const ds = METRICS[currentMetric];
+  if (!ds) return;
+  const labels = [...ds.weeks].reverse().map(fmtWeek);
+  const totals = [...ds.grid].reverse().map(r => r.reduce((a, b) => a + b, 0));
+  document.getElementById('totalChartTitle').textContent = `Total ${ds.label} — All Markets`;
+
+  if (totalChart) totalChart.destroy();
+  totalChart = new Chart(document.getElementById('totalCanvas'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: `Total ${ds.label}`,
+        data: totals,
+        borderColor: '#818cf8',
+        backgroundColor: 'rgba(129,140,248,.1)',
+        borderWidth: 2.5,
+        pointRadius: ds.weeks.length > 30 ? 0 : 2,
+        pointHoverRadius: 5,
+        tension: 0.35,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(11,14,25,.95)', borderColor: '#2a3158', borderWidth: 1,
+          titleFont: { size: 12, family: 'DM Sans' }, bodyFont: { size: 11, family: 'JetBrains Mono' },
+          padding: 10, cornerRadius: 8,
+          callbacks: { label: c => ` Total: ${c.parsed.y.toLocaleString()}` }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 9, family: 'DM Sans' }, color: '#8a93b8', maxRotation: 60, autoSkip: true, maxTicksLimit: 25 }, grid: { color: 'rgba(42,49,88,.3)' } },
+        y: { beginAtZero: true, ticks: { font: { size: 10, family: 'JetBrains Mono' }, color: '#8a93b8', callback: v => v.toLocaleString() }, grid: { color: 'rgba(42,49,88,.3)' } }
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHART (by market)
    ═══════════════════════════════════════════════════════════ */
 function buildChart() {
   const ds = METRICS[currentMetric];
