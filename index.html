@@ -300,7 +300,7 @@ function parseStudentCSV(csvText) {
       const label = (rows[r][0]||'').trim();
       if (!label) break;
       const vals = mCols.map(c => parseInt((rows[r][c]||'').replace(/,/g,''),10)||0);
-      if (label.toLowerCase() === 'average') {
+      if (label.toLowerCase() === 'average' || label.toLowerCase() === 'all regions') {
         avgRow = vals;
         break;
       }
