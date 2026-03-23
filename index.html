@@ -284,15 +284,31 @@ const STUDENT_TAB_NAME = 'Student Loads';
 function csvUrl(name) { return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`; }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_VERSION = 'v3'; // bump this when data format changes
+
+// Clear stale caches from previous versions
+(function clearOldCache() {
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith('cc_cache_') && !k.startsWith(`cc_cache_${CACHE_VERSION}_`)) {
+        sessionStorage.removeItem(k);
+      }
+    }
+  } catch(e) {}
+})();
+
 async function fetchWithCache(sheetName) {
-  const key = `cc_cache_${sheetName}`;
-  const tsKey = `cc_cache_ts_${sheetName}`;
-  const cached = sessionStorage.getItem(key);
-  const cachedTs = parseInt(sessionStorage.getItem(tsKey) || '0', 10);
-  if (cached && (Date.now() - cachedTs) < CACHE_TTL) {
-    console.log(`Cache hit: ${sheetName}`);
-    return cached;
-  }
+  const key = `cc_cache_${CACHE_VERSION}_${sheetName}`;
+  const tsKey = `cc_cache_${CACHE_VERSION}_ts_${sheetName}`;
+  try {
+    const cached = sessionStorage.getItem(key);
+    const cachedTs = parseInt(sessionStorage.getItem(tsKey) || '0', 10);
+    if (cached && (Date.now() - cachedTs) < CACHE_TTL) {
+      console.log(`Cache hit: ${sheetName}`);
+      return cached;
+    }
+  } catch(e) {}
   console.log(`Fetching: ${sheetName}`);
   const resp = await fetch(csvUrl(sheetName));
   if (!resp.ok) throw new Error(`Failed to fetch "${sheetName}": HTTP ${resp.status}`);
@@ -483,7 +499,7 @@ async function loadAllData() {
   } catch (err) {
     document.getElementById('loader').style.display = 'none';
     const box = document.getElementById('errorBox');
-    box.style.display = '';
+    box.style.display = 'block';
     box.innerHTML = `<strong>Failed to load:</strong> ${err.message}<br><br>
       Expected tabs: <code>Leads Created</code>, <code>ICs Booked</code>, <code>Deals Closed</code>, <code>${STUDENT_TAB_NAME}</code><br>
       <small style="color:var(--text3)">Check console (F12) for details.</small>`;
