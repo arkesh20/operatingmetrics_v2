@@ -303,6 +303,51 @@ async function fetchWithCache(sheetName) {
 
 const PALETTE = ["#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899","#14b8a6","#f97316","#3b82f6","#84cc16","#a855f7","#06b6d4","#e11d48","#22d3ee","#d946ef","#facc15","#4ade80","#fb923c","#818cf8","#2dd4bf","#f43f5e","#34d399","#0ea5e9","#e879f9"];
 
+// Market display name abbreviations
+const MARKET_ABBREV = {
+  'Hong Kong SAR': 'Hong Kong', 'Hong Kong':'Hong Kong',
+  'United Arab Emirates': 'UAE', 'United Kingdom': 'UK',
+  'United States of America': 'USA', 'United States': 'USA'
+};
+function displayMarket(m) { return MARKET_ABBREV[m] || m; }
+
+// Filter out the current (incomplete) week based on PST timezone
+function getWeekStartPST() {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const day = now.getDay(); // 0=Sun
+  const diff = day === 0 ? 6 : day - 1; // days since Monday
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+  monday.setHours(0,0,0,0);
+  return monday;
+}
+
+function filterCompleteWeeks(weeks, grid) {
+  const cutoff = getWeekStartPST();
+  const filtered = { weeks: [], grid: [] };
+  for (let i = 0; i < weeks.length; i++) {
+    const d = new Date(weeks[i]);
+    if (d < cutoff) { filtered.weeks.push(weeks[i]); filtered.grid.push(grid[i]); }
+  }
+  return filtered;
+}
+
+// Skip the oldest week (start one week later)
+function trimOldestWeek(weeks, grid) {
+  if (weeks.length <= 1) return { weeks, grid };
+  return { weeks: weeks.slice(0, -1), grid: grid.slice(0, -1) };
+}
+
+// Format student month headers like "2024-2-1" → "Feb '24"
+function fmtStudentMonth(m) {
+  // Try parsing as YYYY-M-D
+  const parts = m.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (parts) {
+    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${mo[parseInt(parts[2],10)-1]} '${parts[1].slice(2)}`;
+  }
+  return m; // fallback
+}
+
 /* ═══════════════════════════════════════════════════════════
    STATE
    ═══════════════════════════════════════════════════════════ */
@@ -347,12 +392,12 @@ function parsePivotCSV(csvText) {
 }
 
 // Parse student loads tab: two stacked tables (Strat then SSM)
-// Each table: header row has "Service Region" then month columns, data rows are regions
+// NEW FORMAT: dates are "2024-2-1" style (left-to-right, oldest→newest)
+// "All Regions" row is now inline (alphabetically sorted), not a terminator
 function parseStudentCSV(csvText) {
   const rows = Papa.parse(csvText, { header: false, skipEmptyLines: false }).data;
 
   function findSection(startRow) {
-    // Find next row that starts with "Service Region" (the header)
     let headerIdx = -1;
     for (let r = startRow; r < rows.length; r++) {
       const cell = (rows[r][0]||'').trim().toLowerCase();
@@ -362,18 +407,19 @@ function parseStudentCSV(csvText) {
     }
     if (headerIdx === -1) return null;
 
-    // Extract month headers from columns B onward — ONLY keep date-like values (e.g. "Mar-26")
+    // Extract month headers — match both "Mar-26" and "2024-2-1" formats
     const hdr = rows[headerIdx];
     const months = [], mCols = [];
-    const monthPattern = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]?\d{2,4}$/i;
+    const monthPatternOld = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]?\d{2,4}$/i;
+    const monthPatternNew = /^\d{4}-\d{1,2}-\d{1,2}$/;
     for (let c = 1; c < hdr.length; c++) {
       const v = (hdr[c]||'').trim();
       if (!v) continue;
-      if (!monthPattern.test(v)) continue; // skip non-date columns like "Service Region", YoY summaries
+      if (!monthPatternOld.test(v) && !monthPatternNew.test(v)) continue;
       months.push(v); mCols.push(c);
     }
 
-    // Read data rows until "Average" or blank or next section
+    // Read ALL data rows, separate "All Regions" from individual regions
     const regions = [], grid = [];
     let avgRow = null;
     for (let r = headerIdx+1; r < rows.length; r++) {
@@ -381,14 +427,14 @@ function parseStudentCSV(csvText) {
       if (!label) break;
       const vals = mCols.map(c => parseInt((rows[r][c]||'').replace(/,/g,''),10)||0);
       if (label.toLowerCase() === 'average' || label.toLowerCase() === 'all regions') {
-        avgRow = vals;
-        break;
+        avgRow = vals; // capture but don't break — keep reading
+        continue;
       }
       regions.push(label);
       grid.push(vals);
     }
 
-    return { months, regions, grid, avgRow, endRow: headerIdx + regions.length + 3 };
+    return { months, regions, grid, avgRow, endRow: headerIdx + regions.length + (avgRow ? 4 : 3) };
   }
 
   const strat = findSection(0);
@@ -409,7 +455,11 @@ async function loadAllData() {
     for (const [key, tab] of Object.entries(PIPELINE_TABS)) {
       status.textContent = `Loading ${tab.label}…`;
       const text = await fetchWithCache(tab.sheetName);
-      METRICS[key] = { ...parsePivotCSV(text), label: tab.label };
+      const raw = parsePivotCSV(text);
+      // Filter out incomplete current week and trim oldest week
+      let filtered = filterCompleteWeeks(raw.weeks, raw.grid);
+      filtered = trimOldestWeek(filtered.weeks, filtered.grid);
+      METRICS[key] = { weeks: filtered.weeks, grid: filtered.grid, markets: raw.markets, label: tab.label };
     }
     ALL_MARKETS = METRICS.created.markets;
     selected = new Set(['USA']);
@@ -525,16 +575,19 @@ function renderKPIs() {
 
 function renderStudentKPIs(el) {
   const s = STUDENT_DATA; if (!s) return;
-  // Avg row: index 0 = most recent month
-  const stratLatest = s.strat.avgRow ? s.strat.avgRow[0] : 0;
-  const ssmLatest   = s.ssm.avgRow   ? s.ssm.avgRow[0]   : 0;
+  // Data is oldest→newest: latest = last element
+  const stratLatest = s.strat.avgRow ? s.strat.avgRow[s.strat.avgRow.length - 1] : 0;
+  const ssmLatest   = s.ssm.avgRow   ? s.ssm.avgRow[s.ssm.avgRow.length - 1]   : 0;
 
-  // YoY: compare avg of first 12 months vs next 12 months
+  // YoY: compare last 12 months vs the 12 before that
   function yoy(avgRow) {
     if (!avgRow || avgRow.length < 13) return '—';
-    const recent = avgRow.slice(0, 12).reduce((a,b)=>a+b,0) / 12;
-    const prior  = avgRow.slice(12, 24).reduce((a,b)=>a+b,0) / Math.min(12, avgRow.length - 12);
-    return prior ? (((recent - prior) / prior) * 100).toFixed(1) : '—';
+    const len = avgRow.length;
+    const recent = avgRow.slice(Math.max(0, len - 12)).reduce((a,b)=>a+b,0) / Math.min(12, len);
+    const prior  = avgRow.slice(Math.max(0, len - 24), Math.max(0, len - 12));
+    if (!prior.length) return '—';
+    const pAvg = prior.reduce((a,b)=>a+b,0) / prior.length;
+    return pAvg ? (((recent - pAvg) / pAvg) * 100).toFixed(1) : '—';
   }
   const stratYoY = yoy(s.strat.avgRow);
   const ssmYoY   = yoy(s.ssm.avgRow);
@@ -543,7 +596,7 @@ function renderStudentKPIs(el) {
   const smSign = ssmYoY!=='—' ? (parseFloat(ssmYoY)>=0?'+':'') : '';
   const smCls  = parseFloat(ssmYoY)>=0 ? 'kpi-up' : 'kpi-down';
 
-  const latestMonth = s.strat.months[0] || '';
+  const latestMonth = fmtStudentMonth(s.strat.months[s.strat.months.length - 1] || '');
 
   el.innerHTML = `
     <div class="kpi"><div class="kpi-label">Avg Students / Strat (${latestMonth})</div><div class="kpi-val">${stratLatest}</div><div class="kpi-sub">Latest month</div></div>
@@ -567,7 +620,7 @@ function renderPipelineView() {
 function renderChips() {
   document.getElementById('chipBox').innerHTML = ALL_MARKETS.map(m => {
     const c = colorFor(m), on = selected.has(m);
-    return `<span class="chip${on?' on':''}" style="${on?'background:'+c+';color:#fff;border-color:'+c:''}" onclick="toggleChip('${m}')">${m}</span>`;
+    return `<span class="chip${on?' on':''}" style="${on?'background:'+c+';color:#fff;border-color:'+c:''}" onclick="toggleChip('${m}')">${displayMarket(m)}</span>`;
   }).join('');
 }
 function toggleChip(m) { selected.has(m)?selected.delete(m):selected.add(m); renderChips(); buildChart(); }
@@ -620,7 +673,7 @@ function buildChart() {
 
     // Actual line
     datasets.push({
-      label: m,
+      label: displayMarket(m),
       data: raw,
       borderColor: color,
       backgroundColor: color + '18',
@@ -638,7 +691,7 @@ function buildChart() {
       return Math.round(win.reduce((a, b) => a + b, 0) / win.length);
     });
     datasets.push({
-      label: `${m} L4W Avg`,
+      label: `${displayMarket(m)} L4W Avg`,
       data: l4w,
       borderColor: color,
       backgroundColor: 'transparent',
@@ -694,7 +747,7 @@ function renderPipelineTable() {
   const flat = ds.grid.flat(), sorted = [...flat].sort((a,b)=>a-b);
   const p90 = sorted[Math.floor(sorted.length*.9)]||1, p70 = sorted[Math.floor(sorted.length*.7)]||1;
   let h = '<table><thead><tr><th>Week</th>';
-  ds.markets.forEach(m => h += `<th>${m}</th>`);
+  ds.markets.forEach(m => h += `<th>${displayMarket(m)}</th>`);
   h += '<th class="col-total">Total</th></tr></thead><tbody>';
   ds.grid.forEach((row,ri) => {
     const t = row.reduce((a,b)=>a+b,0);
@@ -746,11 +799,13 @@ function renderStudentYoY() {
   function calcYoY(grid, ri) {
     if (ri === -1 || !grid[ri]) return { recent: '—', prior: '—', yoy: '—' };
     const vals = grid[ri];
-    const recent12 = vals.slice(0, 12);
-    const prior12 = vals.slice(12, 24);
+    const len = vals.length;
+    // Recent = last 12 months, Prior = 12 months before that
+    const recent12 = vals.slice(Math.max(0, len - 12));
+    const prior12 = vals.slice(Math.max(0, len - 24), Math.max(0, len - 12));
     if (!prior12.length) return { recent: '—', prior: '—', yoy: '—' };
     const rAvg = (recent12.reduce((a,b)=>a+b,0)/recent12.length).toFixed(0);
-    const pAvg = (prior12.reduce((a,b)=>a+b,0)/Math.min(12, prior12.length)).toFixed(0);
+    const pAvg = (prior12.reduce((a,b)=>a+b,0)/prior12.length).toFixed(0);
     const yoy = pAvg > 0 ? (((rAvg - pAvg) / pAvg) * 100).toFixed(1) : '—';
     return { recent: rAvg, prior: pAvg, yoy };
   }
@@ -780,12 +835,13 @@ function buildStudentCharts() {
 }
 
 function buildOneStudentChart(ds, canvasId, title, which) {
-  const labels = [...ds.months].reverse();
+  // Data is already oldest→newest (left-to-right), no need to reverse
+  const labels = ds.months.map(fmtStudentMonth);
   const datasets = ds.regions.filter(r => selectedRegions.has(r)).map(r => {
     const ri = ds.regions.indexOf(r);
     return {
       label: r,
-      data: [...ds.grid[ri]].reverse(),
+      data: [...ds.grid[ri]],
       borderColor: regionColor(r),
       backgroundColor: regionColor(r) + '18',
       borderWidth: 2,
@@ -799,8 +855,8 @@ function buildOneStudentChart(ds, canvasId, title, which) {
   // Add Average line if toggled on
   if (showAverage && ds.avgRow) {
     datasets.push({
-      label: 'Average',
-      data: [...ds.avgRow].reverse(),
+      label: 'All Regions Avg',
+      data: [...ds.avgRow],
       borderColor: '#fbbf24',
       backgroundColor: 'rgba(251,191,36,.08)',
       borderWidth: 3,
@@ -850,16 +906,15 @@ function renderOneStudentTable(ds, mountId) {
   const flat = ds.grid.flat(), sorted = [...flat].sort((a,b)=>a-b);
   const p90 = sorted[Math.floor(sorted.length*.9)]||1, p70 = sorted[Math.floor(sorted.length*.7)]||1;
   let h = '<table><thead><tr><th>Region</th>';
-  ds.months.forEach(m => h += `<th>${m}</th>`);
+  ds.months.forEach(m => h += `<th>${fmtStudentMonth(m)}</th>`);
   h += '</tr></thead><tbody>';
   ds.regions.forEach((r, ri) => {
     h += `<tr><td>${r}</td>`;
     ds.grid[ri].forEach(v => { h += `<td class="${v>=p90?'v-high':v>=p70?'v-med':''}">${v}</td>`; });
     h += '</tr>';
   });
-  // Average row
   if (ds.avgRow) {
-    h += '<tr style="border-top:2px solid var(--border)"><td style="font-weight:700;color:var(--indigo2)">Average</td>';
+    h += '<tr style="border-top:2px solid var(--border)"><td style="font-weight:700;color:var(--indigo2)">All Regions</td>';
     ds.avgRow.forEach(v => h += `<td class="col-total">${v}</td>`);
     h += '</tr>';
   }
@@ -905,7 +960,7 @@ function renderFunnelView() {
 function renderFunnelMarketChips() {
   document.getElementById('funnelMarketChips').innerHTML = ALL_MARKETS.map(m => {
     const c = colorFor(m), on = m === selectedFunnelMarket;
-    return `<span class="chip${on?' on':''}" style="${on?'background:'+c+';color:#fff;border-color:'+c:''}" onclick="selectFunnelMarket('${m}')">${m}</span>`;
+    return `<span class="chip${on?' on':''}" style="${on?'background:'+c+';color:#fff;border-color:'+c:''}" onclick="selectFunnelMarket('${m}')">${displayMarket(m)}</span>`;
   }).join('');
 }
 function selectFunnelMarket(m) { selectedFunnelMarket = m; renderFunnelMarketChips(); buildFunnelMarketCharts(); }
@@ -985,8 +1040,8 @@ function buildFunnelMarketCharts() {
   const closeRate = bVals.map((b,i) => b ? parseFloat(((dVals[i]/b)*100).toFixed(1)) : 0);
   const smooth = arr => arr.map((v,i) => { const w = arr.slice(Math.max(0,i-3),i+1); return parseFloat((w.reduce((a,b)=>a+b,0)/w.length).toFixed(1)); });
 
-  document.getElementById('funnelMktConvTitle').textContent = `Conversion Rates — ${m}`;
-  document.getElementById('funnelMktVolTitle').textContent = `Weekly Funnel — ${m}`;
+  document.getElementById('funnelMktConvTitle').textContent = `Conversion Rates — ${displayMarket(m)}`;
+  document.getElementById('funnelMktVolTitle').textContent = `Weekly Funnel — ${displayMarket(m)}`;
 
   const chartOpts = (yLabel, isPct) => ({responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:10,font:{size:10,family:'DM Sans'},color:'#8a93b8'}},
