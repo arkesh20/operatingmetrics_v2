@@ -284,7 +284,7 @@ const STUDENT_TAB_NAME = 'Student Loads';
 function csvUrl(name) { return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`; }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const CACHE_VERSION = 'v6'; // bump this when data format changes
+const CACHE_VERSION = 'v7'; // bump this when data format changes
 
 // Clear stale caches from previous versions
 (function clearOldCache() {
@@ -353,15 +353,18 @@ function trimOldestWeek(weeks, grid) {
   return { weeks: weeks.slice(0, -1), grid: grid.slice(0, -1) };
 }
 
-// Format student month headers like "2024-2-1" → "Feb '24"
+// Format any date string into "Mon 'YY" for display
 function fmtStudentMonth(m) {
-  // Try parsing as YYYY-M-D
-  const parts = m.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (parts) {
-    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${mo[parseInt(parts[2],10)-1]} '${parts[1].slice(2)}`;
-  }
-  return m; // fallback
+  m = (m||'').trim().replace(/^"|"$/g, '');
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let p;
+  if ((p = m.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return `${mo[parseInt(p[2],10)-1]} '${p[1].slice(2)}`;
+  if ((p = m.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))) { const yr = p[3].length===2?p[3]:p[3].slice(2); return `${mo[parseInt(p[1],10)-1]} '${yr}`; }
+  if ((p = m.match(/^(\d{1,2})\/(\d{4})$/))) return `${mo[parseInt(p[1],10)-1]} '${p[2].slice(2)}`;
+  if ((p = m.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/))) return `${mo[parseInt(p[2],10)-1]} '${p[1].slice(2)}`;
+  if ((p = m.match(/^Date\((\d+),(\d+),(\d+)\)$/i))) return `${mo[parseInt(p[2],10)]} '${p[1].slice(2)}`;
+  if ((p = m.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]?(\d{2,4})$/i))) return `${p[1]} '${p[2].length===2?p[2]:p[2].slice(2)}`;
+  return m;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -414,40 +417,85 @@ function parseStudentCSV(csvText) {
   const rows = Papa.parse(csvText, { header: false, skipEmptyLines: false }).data;
   console.log(`Student CSV: ${rows.length} total rows`);
 
-  const monthPatternOld = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]?\d{2,4}$/i;
-  const monthPatternNew = /^\d{4}-\d{1,2}-\d{1,2}$/;
-  function isMonthHeader(v) { return monthPatternOld.test(v) || monthPatternNew.test(v); }
+  // Very flexible date detection for many Google Sheets export formats
+  function isDateLike(v) {
+    if (!v) return false;
+    v = v.trim().replace(/^"|"$/g, '');
+    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(v)) return true;   // 2024-2-1 or 2024-02-01T...
+    if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(v)) return true; // Mar-26
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(v)) return true; // 2/1/2024
+    if (/^\d{1,2}\/\d{4}$/.test(v)) return true;            // 1/2024
+    if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(v)) return true;   // 2024/2/1
+    if (/^Date\(/i.test(v)) return true;                     // Date(2024,1,1)
+    return false;
+  }
 
-  // Step 1: Find section boundaries by looking for title rows and header rows
-  // A "header row" has 5+ date-like columns after column 0
+  // Find header rows: rows with 5+ date-like values in columns after col 0
   const headerRows = [];
   for (let r = 0; r < rows.length; r++) {
-    const dateCols = rows[r].filter((c, i) => i > 0 && isMonthHeader((c||'').trim())).length;
+    let dateCols = 0;
+    for (let c = 1; c < rows[r].length && dateCols < 6; c++) {
+      if (isDateLike(rows[r][c])) dateCols++;
+    }
     if (dateCols >= 5) {
       headerRows.push(r);
-      console.log(`Header row ${r}: "${(rows[r][0]||'').trim()}" with ${dateCols} date columns`);
+      console.log(`Header row ${r}: col0="${(rows[r][0]||'').trim()}" dateCols=${dateCols} sample="${(rows[r][1]||'').trim()}"`);
     }
-  }
-  console.log(`Found ${headerRows.length} header rows at: ${headerRows.join(', ')}`);
-  if (headerRows.length < 2) {
-    // Debug: log row labels
-    for (let r = 0; r < Math.min(rows.length, 50); r++) {
-      const cell = (rows[r][0]||'').trim();
-      if (cell) console.log(`Row ${r}: "${cell}" | cols with data: ${rows[r].filter(c=>(c||'').trim()).length}`);
-    }
-    throw new Error(`Expected 2 header rows with date columns, found ${headerRows.length}`);
   }
 
-  // Step 2: Parse each section
+  // Fallback: look for "Service Region" text
+  if (headerRows.length < 2) {
+    console.log(`Date detection found ${headerRows.length}. Trying "Service Region" fallback...`);
+    for (let r = 0; r < rows.length; r++) {
+      const cell = (rows[r][0]||'').trim().toLowerCase().replace(/['"]/g, '');
+      if (cell.includes('service region') && !headerRows.includes(r)) {
+        headerRows.push(r);
+        console.log(`Fallback header row ${r}: "${(rows[r][0]||'').trim()}" non-empty cols: ${rows[r].filter(c=>(c||'').trim()).length}`);
+      }
+    }
+    headerRows.sort((a, b) => a - b);
+  }
+
+  // Last resort fallback: find rows with the most non-empty, non-numeric header-like cells
+  if (headerRows.length < 2) {
+    console.log('Still < 2 headers. Trying non-numeric cell count fallback...');
+    const candidates = [];
+    for (let r = 0; r < rows.length; r++) {
+      const nonNumCells = rows[r].filter((c, i) => {
+        if (i === 0) return false;
+        const v = (c||'').trim();
+        return v && isNaN(Number(v.replace(/,/g, '')));
+      }).length;
+      if (nonNumCells >= 10) candidates.push({ r, count: nonNumCells });
+    }
+    candidates.sort((a, b) => b.count - a.count);
+    for (const c of candidates) {
+      if (!headerRows.includes(c.r)) headerRows.push(c.r);
+      if (headerRows.length >= 2) break;
+    }
+    headerRows.sort((a, b) => a - b);
+  }
+
+  console.log(`Final header rows: ${headerRows.length} at: ${headerRows.join(', ')}`);
+  if (headerRows.length < 2) {
+    console.log('=== ROW DUMP (first 45) ===');
+    for (let r = 0; r < Math.min(rows.length, 45); r++) {
+      console.log(`Row ${r}: [${rows[r].slice(0,5).map(c=>(c||'').trim()).join(' | ')}] (${rows[r].filter(c=>(c||'').trim()).length} cols)`);
+    }
+    throw new Error(`Expected 2 header rows, found ${headerRows.length}. Check console (F12) for row dump.`);
+  }
+
   function parseSection(headerIdx, nextHeaderIdx) {
     const hdr = rows[headerIdx];
     const months = [], mCols = [];
     for (let c = 1; c < hdr.length; c++) {
       const v = (hdr[c]||'').trim();
-      if (!v || !isMonthHeader(v)) continue;
-      months.push(v); mCols.push(c);
+      if (!v) continue;
+      // Accept anything that's not purely numeric and not the first col label
+      if (isDateLike(v) || (isNaN(Number(v.replace(/,/g,''))) && v.toLowerCase() !== 'service region')) {
+        months.push(v); mCols.push(c);
+      }
     }
-
     const regions = [], grid = [];
     let avgRow = null;
     const stopAt = nextHeaderIdx || rows.length;
@@ -455,23 +503,22 @@ function parseStudentCSV(csvText) {
       const label = (rows[r][0]||'').trim();
       if (!label) continue;
       if (label.toLowerCase().startsWith('students')) continue;
+      // Skip if this is another header row
+      if (label.toLowerCase().includes('service region')) continue;
       const vals = mCols.map(c => parseInt((rows[r][c]||'').replace(/,/g,''),10)||0);
       if (label.toLowerCase() === 'average' || label.toLowerCase() === 'all regions') {
-        avgRow = vals;
-        continue;
+        avgRow = vals; continue;
       }
       regions.push(label);
       grid.push(vals);
     }
-
     return { months, regions, grid, avgRow };
   }
 
   const strat = parseSection(headerRows[0], headerRows[1]);
   const ssm   = parseSection(headerRows[1], headerRows[2] || rows.length);
-  console.log(`Strat: ${strat.regions.length} regions, ${strat.months.length} months, avg=${strat.avgRow?'yes':'no'}`);
-  console.log(`SSM: ${ssm.regions.length} regions, ${ssm.months.length} months, avg=${ssm.avgRow?'yes':'no'}`);
-
+  console.log(`Strat: ${strat.regions.length} regions, ${strat.months.length} months`);
+  console.log(`SSM: ${ssm.regions.length} regions, ${ssm.months.length} months`);
   return { strat, ssm };
 }
 
@@ -497,11 +544,16 @@ async function loadAllData() {
     selected = new Set([usaMarket]);
     selectedFunnelMarket = usaMarket;
 
-    // Student loads tab
-    status.textContent = 'Loading Student Loads…';
-    const sText = await fetchWithCache(STUDENT_TAB_NAME);
-    STUDENT_DATA = parseStudentCSV(sText);
-    selectedRegions = new Set(['USCA']);
+    // Student loads tab (non-blocking — dashboard works without it)
+    try {
+      status.textContent = 'Loading Student Loads…';
+      const sText = await fetchWithCache(STUDENT_TAB_NAME);
+      STUDENT_DATA = parseStudentCSV(sText);
+      selectedRegions = new Set(['USCA']);
+    } catch (studentErr) {
+      console.error('Student Loads failed (non-blocking):', studentErr);
+      STUDENT_DATA = null;
+    }
 
     // Show UI
     document.getElementById('loader').style.display = 'none';
@@ -510,7 +562,7 @@ async function loadAllData() {
     document.getElementById('countCreated').textContent = `${METRICS.created.weeks.length} weeks`;
     document.getElementById('countBooked').textContent = `${METRICS.booked.weeks.length} weeks`;
     document.getElementById('countClosed').textContent = `${METRICS.closed.weeks.length} weeks`;
-    document.getElementById('countStudents').textContent = `${STUDENT_DATA.strat.months.length} months`;
+    document.getElementById('countStudents').textContent = STUDENT_DATA ? `${STUDENT_DATA.strat.months.length} months` : 'error';
 
     renderAll();
   } catch (err) {
