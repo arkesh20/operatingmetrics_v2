@@ -284,7 +284,7 @@ const STUDENT_TAB_NAME = 'Student Loads';
 function csvUrl(name) { return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`; }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const CACHE_VERSION = 'v5'; // bump this when data format changes
+const CACHE_VERSION = 'v6'; // bump this when data format changes
 
 // Clear stale caches from previous versions
 (function clearOldCache() {
@@ -412,26 +412,39 @@ function parsePivotCSV(csvText) {
 // "All Regions" row is now inline (alphabetically sorted), not a terminator
 function parseStudentCSV(csvText) {
   const rows = Papa.parse(csvText, { header: false, skipEmptyLines: false }).data;
+  console.log(`Student CSV: ${rows.length} total rows`);
 
-  // Step 1: Find ALL "Service Region" header rows
+  const monthPatternOld = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]?\d{2,4}$/i;
+  const monthPatternNew = /^\d{4}-\d{1,2}-\d{1,2}$/;
+  function isMonthHeader(v) { return monthPatternOld.test(v) || monthPatternNew.test(v); }
+
+  // Step 1: Find section boundaries by looking for title rows and header rows
+  // A "header row" has 5+ date-like columns after column 0
   const headerRows = [];
   for (let r = 0; r < rows.length; r++) {
-    const cell = (rows[r][0]||'').trim().toLowerCase();
-    if (cell === 'service region') headerRows.push(r);
+    const dateCols = rows[r].filter((c, i) => i > 0 && isMonthHeader((c||'').trim())).length;
+    if (dateCols >= 5) {
+      headerRows.push(r);
+      console.log(`Header row ${r}: "${(rows[r][0]||'').trim()}" with ${dateCols} date columns`);
+    }
   }
-  console.log(`Found ${headerRows.length} Service Region headers at rows: ${headerRows.join(', ')}`);
-  if (headerRows.length < 2) throw new Error(`Expected 2 "Service Region" headers, found ${headerRows.length}`);
+  console.log(`Found ${headerRows.length} header rows at: ${headerRows.join(', ')}`);
+  if (headerRows.length < 2) {
+    // Debug: log row labels
+    for (let r = 0; r < Math.min(rows.length, 50); r++) {
+      const cell = (rows[r][0]||'').trim();
+      if (cell) console.log(`Row ${r}: "${cell}" | cols with data: ${rows[r].filter(c=>(c||'').trim()).length}`);
+    }
+    throw new Error(`Expected 2 header rows with date columns, found ${headerRows.length}`);
+  }
 
-  // Step 2: Parse each section — read from header to the next header (or end of file)
+  // Step 2: Parse each section
   function parseSection(headerIdx, nextHeaderIdx) {
     const hdr = rows[headerIdx];
     const months = [], mCols = [];
-    const monthPatternOld = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\s]?\d{2,4}$/i;
-    const monthPatternNew = /^\d{4}-\d{1,2}-\d{1,2}$/;
     for (let c = 1; c < hdr.length; c++) {
       const v = (hdr[c]||'').trim();
-      if (!v) continue;
-      if (!monthPatternOld.test(v) && !monthPatternNew.test(v)) continue;
+      if (!v || !isMonthHeader(v)) continue;
       months.push(v); mCols.push(c);
     }
 
@@ -440,8 +453,7 @@ function parseStudentCSV(csvText) {
     const stopAt = nextHeaderIdx || rows.length;
     for (let r = headerIdx + 1; r < stopAt; r++) {
       const label = (rows[r][0]||'').trim();
-      if (!label) continue; // skip blank rows
-      // Skip section titles like "Students / SSM"
+      if (!label) continue;
       if (label.toLowerCase().startsWith('students')) continue;
       const vals = mCols.map(c => parseInt((rows[r][c]||'').replace(/,/g,''),10)||0);
       if (label.toLowerCase() === 'average' || label.toLowerCase() === 'all regions') {
@@ -457,8 +469,8 @@ function parseStudentCSV(csvText) {
 
   const strat = parseSection(headerRows[0], headerRows[1]);
   const ssm   = parseSection(headerRows[1], headerRows[2] || rows.length);
-  console.log(`Strat: ${strat.regions.length} regions, ${strat.months.length} months, avgRow=${strat.avgRow?'found':'missing'}`);
-  console.log(`SSM: ${ssm.regions.length} regions, ${ssm.months.length} months, avgRow=${ssm.avgRow?'found':'missing'}`);
+  console.log(`Strat: ${strat.regions.length} regions, ${strat.months.length} months, avg=${strat.avgRow?'yes':'no'}`);
+  console.log(`SSM: ${ssm.regions.length} regions, ${ssm.months.length} months, avg=${ssm.avgRow?'yes':'no'}`);
 
   return { strat, ssm };
 }
